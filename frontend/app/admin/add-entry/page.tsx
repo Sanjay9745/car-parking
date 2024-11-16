@@ -1,50 +1,64 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
-import { CameraIcon, UploadIcon } from 'lucide-react'
+import { CameraIcon, UploadIcon, RefreshCwIcon } from 'lucide-react'
+import "@/components/css/switch.css"
 import axios from 'axios';
 
 import apiUrl from '@/constants/apiUrl'
 
-
 export default function CameraCapture() {
-    const [imageData, setImageData] = useState<string | null>(null)
-    const [error, setError] = useState<string | null>(null)
-    const [uploading, setUploading] = useState(false)
-    const [uploadStatus, setUploadStatus] = useState<string | null>(null)
-    const [lplate, setLplate] = useState<string>('')
-    const videoRef = useRef<HTMLVideoElement>(null)
+  const [imageData, setImageData] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null)
+  const [lplate, setLplate] = useState<string>('')
+  const [entryType, setEntryType] = useState<string>('entry')
+  const [facingMode, setFacingMode] = useState<string>('environment')
+  const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  
-  
+  const streamRef = useRef<MediaStream | null>(null)
+
+  useEffect(() => {
+    if (error || uploadStatus) {
+      const timer = setTimeout(() => {
+        setError(null)
+        setUploadStatus(null)
+      }, 5000) // Clear the alert messages after 5 seconds
+
+      return () => clearTimeout(timer)
+    }
+  }, [error, uploadStatus])
+
   async function uploadImage(formData: FormData) {
-      try {
-          const response = await axios.post(`${apiUrl}/vehicles/upload`, formData, {
-              headers: {
-                  'x-access-token': localStorage.getItem('adminToken') || '',
-                  'Content-Type': 'multipart/form-data'
-              }
-          });
-  
-          if (response.status === 200) {
-                setLplate(response.data.lplate || '');
-              return { success: true, message: 'Image uploaded successfully!' };
-          } else {
-              return { success: false, message: 'Image upload failed!' };
-          }
-      } catch (error) {
-          console.error('Error uploading image:', error);
-          return { success: false, message: 'An error occurred during image upload. Please try again.' };
+    try {
+      const response = await axios.post(`${apiUrl}/vehicles/upload`, formData, {
+        headers: {
+          'x-access-token': localStorage.getItem('adminToken') || '',
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (response.status === 200) {
+        setLplate(response.data.lplate || '');
+        return { success: true, message: 'Image uploaded successfully!' };
+      } else {
+        return { success: false, message: 'Image upload failed!' };
       }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return { success: false, message: 'An error occurred during image upload. Please try again.' };
+    }
   }
-  
+
   const startCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } })
+      streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
       }
@@ -66,9 +80,10 @@ export default function CameraCapture() {
   }
 
   const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
+    if (streamRef.current) {
+      const tracks = streamRef.current.getTracks()
       tracks.forEach(track => track.stop())
+      streamRef.current = null
     }
   }
 
@@ -94,23 +109,34 @@ export default function CameraCapture() {
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     try {
-      const response = await fetch(`${apiUrl}/vehicles/entry`, {
+      let entry = entryType === 'entry' ? 'entry' : 'exit'
+      const response = await fetch(`${apiUrl}/vehicles/${entry}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-access-token': localStorage.getItem('adminToken') || ''
         },
-        body: JSON.stringify({ lplate })
+        body: JSON.stringify({ lplate, entryType })
       });
 
       if (response.ok) {
-        setUploadStatus('License plate submitted successfully!')
+        setUploadStatus('License plate submitted successfully!');
+        setLplate('');
       } else {
         setError('Failed to submit license plate.')
       }
     } catch (error) {
       setError('An error occurred during license plate submission. Please try again.')
     }
+  }
+
+  const toggleCamera = () => {
+    setFacingMode(facingMode === 'environment' ? 'user' : 'environment')
+    startCamera()
+  }
+
+  const toggleEntryType = () => {
+    setEntryType(prevType => (prevType === 'entry' ? 'exit' : 'entry'))
   }
 
   return (
@@ -153,6 +179,12 @@ export default function CameraCapture() {
                   </>
                 )}
               </div>
+              <div className="flex justify-between gap-4 mt-4">
+                <Button onClick={toggleCamera} className="flex-1">
+                  <RefreshCwIcon className="mr-2 h-4 w-4" />
+                  Switch Camera
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -175,6 +207,20 @@ export default function CameraCapture() {
                     required
                     className="w-full"
                   />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="entryType" className="text-sm font-medium text-gray-700">
+                    Entry Type
+                  </label>
+                  <label className="switch" aria-label="Toggle Entry Type">
+                    <input
+                      type="checkbox"
+                      checked={entryType === 'exit'}
+                      onChange={toggleEntryType}
+                    />
+                    <span className="entry">Entry</span>
+                    <span className="exit">Exit</span>
+                  </label>
                 </div>
                 <Button type="submit" className="w-full">Submit License Plate</Button>
               </form>

@@ -9,6 +9,7 @@ router.post('/', upload, controller.createVehicle);
 router.get('/', controller.getAllVehicles);
 router.post('/upload',adminAuth,upload, controller.uploadLPlate);
 router.post('/entry',adminAuth, controller.addEntry);
+router.post('/exit',adminAuth, controller.addExit)
 
 // users
 router.post('/user',userAuth, controller.addVehicleToUser);

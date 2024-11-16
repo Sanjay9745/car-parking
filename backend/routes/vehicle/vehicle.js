@@ -2,6 +2,7 @@ const Vehicle = require('../../models/Vehicle');
 const User = require('../../models/User');
 const ParkingSlot = require('../../models/ParkingSlot');
 let imageToText = require('../../helpers/imageToText');
+const moment = require('moment');
 // GET all vehicles
 exports.getAllVehicles = async (req, res) => {
     try {
@@ -13,18 +14,25 @@ exports.getAllVehicles = async (req, res) => {
 };
 
 // GET a single vehicle by ID
+
 exports.getVehicleById = async (req, res) => {
     try {
         const vehicle = await Vehicle.findById(req.params.id);
-        if (vehicle == null) {
+        if (!vehicle) {
             return res.status(404).json({ message: 'Cannot find vehicle' });
         }
-        res.json(vehicle);
+
+        const parkingSlot = await ParkingSlot.findOne({ vehicle: vehicle._id });
+        const response = {
+            vehicle,
+            slot: parkingSlot || null
+        };
+
+        res.json(response);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
-
 // GET a vehicle by license plate
 exports.getVehicleByLplate = async (req, res) => {
     try {
@@ -39,8 +47,18 @@ exports.getVehicleByLplate = async (req, res) => {
 };
 // CREATE a new vehicle
 exports.createVehicle = async (req, res) => {
+    let lplate = req.body.lplate;
+    if (!lplate) {
+        return res.status(400).json({ message: 'License Plate is required' });
+    }
+
+    lplate = enhanceLPlate(lplate);
+    const vehicleExists = await Vehicle.findOne({ lplate: lplate });
+    if (vehicleExists) {
+        return res.status(400).json({ message: 'Vehicle already exists' });
+    }
     const vehicle = new Vehicle({
-        lplate: req.body.lplate,
+        lplate: lplate,
         make: req.body.make,
         model: req.body.model,
         year: req.body.year,
@@ -62,7 +80,14 @@ exports.updateVehicleById = async (req, res) => {
         if (vehicle == null) {
             return res.status(404).json({ message: 'Cannot find vehicle' });
         }
-
+        let lplate = req.body.lplate;
+        if (lplate) {
+            lplate = enhanceLPlate(lplate);
+            const vehicleExists = await Vehicle.findOne({ lplate: lplate });
+            if (vehicleExists && vehicleExists._id != vehicle._id) {
+                return res.status(400).json({ message: 'Vehicle already exists' });
+            }
+        }
         if (req.body.lplate != null) {
             vehicle.lplate = req.body.lplate;
         }
@@ -129,12 +154,16 @@ exports.addVehicleToUser = async (req, res) => {
 
         // Get the license plate from the request params or body
         const lplate = req.params.lplate || req.body.lplate;
+        if (!lplate) {
+            return res.status(400).json({ message: 'License Plate is required' });
+        }
+        lplate = enhanceLPlate(lplate);
         let vehicle = await Vehicle.findOne({ lplate: lplate });
 
         // If the vehicle doesn't exist, create a new one
         if (!vehicle) {
             vehicle = new Vehicle({
-                lplate: req.body.lplate,
+                lplate: lplate,
                 make: req.body.make,
                 model: req.body.model,
                 year: req.body.year,
@@ -255,6 +284,7 @@ exports.uploadLPlate = async (req, res) => {
             return res.status(400).json({ message: 'Image is required' });
         }
         let text = await imageToText(image.path);
+        text = enhanceLPlate(text);
         res.json({message: "License Plate Extracted Successfully", lplate: text});
     }catch(err) {
         res.status(500).json({ message: err.message });
@@ -264,18 +294,67 @@ exports.uploadLPlate = async (req, res) => {
 exports.addEntry = async (req, res) => {
     try {
         let lplate = req.body.lplate;
+        lplate = enhanceLPlate(lplate);
         let vehicle = await Vehicle.findOne({ lplate: lplate });
         if (!vehicle) {
-            return res.status(404).json({ message: 'Vehicle not found' });
         }
         if (vehicle.park === 0) {
             vehicle.park = 5;
         } else {
             return res.status(400).json({ message: 'Vehicle is already parked' });
         }
+        vehicle.entry = moment().toISOString();
         await vehicle.save();
         res.json(vehicle);
     }catch(err) {
         res.status(500).json({ message: err.message });
     }
+}
+
+exports.addExit = async (req, res) => {
+    try {
+        let lplate = req.body.lplate;
+
+        let vehicle = await Vehicle.findOne({ lplate: lplate });
+        if (!vehicle) {
+            return res.status(404).json({ message: 'Vehicle not found' });
+        }
+        if (vehicle.park === 0) {
+            return res.status(400).json({ message: 'Vehicle is already out' });
+        }
+        vehicle.park = 0;
+        vehicle.exit = moment().toISOString();
+        let entry = moment(vehicle.entry);
+        let exit = moment(vehicle.exit);
+        let duration = moment.duration(exit.diff(entry));
+        let hours = duration.asHours();
+        let cost = hours * 2;
+        let logs = {
+            entry: vehicle.entry,
+            exit: vehicle.exit,
+            duration: hours,
+            cost: cost,
+            paid: false
+        }
+        vehicle.logs.push(logs);
+        vehicle.entry = null;
+        vehicle.exit = null;
+        let parkingSlot = await ParkingSlot.findOne({ vehicle: vehicle._id });
+        if (parkingSlot) {
+            parkingSlot.vehicle = null;
+            parkingSlot.isOccupied = false;
+            await parkingSlot.save();
+        }
+        await vehicle.save();
+        res.json(vehicle);
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+}
+
+let enhanceLPlate =  (lplate) => {
+    lplate = lplate.toUpperCase();
+    lplate = lplate.replace(/[^a-zA-Z0-9]/g, '').replace(/\s/g, '');
+    return lplate;
 }

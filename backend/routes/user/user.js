@@ -19,6 +19,14 @@ exports.get = async (req, res) => {
     }
 };
 
+//protected
+exports.protected = async (req, res) => {
+    try {
+        res.json({ message: 'You are authorized!' });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
 // CREATE a new user
 exports.create = async (req, res) => {
     try {
@@ -99,3 +107,46 @@ exports.delete = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
+exports.paymentPending = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (user == null) {
+            return res.status(404).json({ message: 'Cannot find user' });
+        }
+        let vehicles = user.vehicles;
+        let pendingVehicles = [];
+        vehicles.forEach(vehicle => {
+            vehicle.logs.forEach(log => {
+                if (!log.paid){
+                    pendingVehicles.push({vehicle,log});
+                }
+            });
+        });
+        res.json(pendingVehicles);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+}
+
+exports.pay = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (user == null) {
+            return res.status(404).json({ message: 'Cannot find user' });
+        }
+        let vehicles = user.vehicles;
+        vehicles.forEach(vehicle => {
+            vehicle.logs.forEach(log => {
+                if (!log.paid){
+                    log.paid = true;
+                }
+            });
+        });
+        const updatedUser = await user.save();
+        res.json(updatedUser);
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+}

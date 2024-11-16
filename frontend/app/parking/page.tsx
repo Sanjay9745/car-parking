@@ -3,11 +3,13 @@
 import { useEffect, useState, Suspense } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Car } from 'lucide-react'
 import axios from 'axios'
 import apiUrl from '@/constants/apiUrl'
 import { useRouter, useSearchParams } from 'next/navigation'
+import useProtected from '@/hooks/useProtected'
 
 function ParkingSlotSelection(): any {
   const sections = ['A', 'B', 'C', 'D'];
@@ -18,6 +20,14 @@ function ParkingSlotSelection(): any {
   const [parkingSlots, setParkingSlots] = useState<any>([]);
 
   useEffect(() => {
+    useProtected().then((isProtected:boolean) => {
+      if (!isProtected) {
+        router.push('/auth');
+        return;
+      }
+     }).catch(() => {
+         router.push('/auth');
+     });
     if (!vehicleId) {
       router.push('/vehicles');
       return;

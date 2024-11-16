@@ -1,26 +1,73 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Clock, Car, CreditCard, MapPin } from 'lucide-react'
+import useProtected from '@/hooks/useProtected'
+import { useRouter, useSearchParams } from 'next/navigation'
+import axios from 'axios'
+import apiUrl from '@/constants/apiUrl'
+import moment from 'moment';
+import { useToast } from '@/hooks/use-toast'
 
 const HOURLY_RATE = 2 // $2 per hour
 
-export default function ParkingStatus() {
-  const [entryTime] = useState(() => new Date(Date.now() - 2 * 60 * 60 * 1000)) // 2 hours ago
+function ParkingStatus() {
+  const { toast } = useToast();
   const [currentTime, setCurrentTime] = useState(new Date())
   const [parkingAmount, setParkingAmount] = useState(0)
-  const [progress, setProgress] = useState(0)
+  const [progress, setProgress] = useState(0);
+  const [entryTime, setEntryTime] = useState(new Date());
+  const [vehicle, setVehicle] = useState<any>({});
+  const [slot, setSlot] = useState<any>({});
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const vehicleId = searchParams.get('vehicleId');
+  const [isExited, setIsExited] = useState(false);
+  const [reload, setReload] = useState(false);
 
   useEffect(() => {
+    if (!vehicleId) {
+      router.push('/vehicles');
+      return;
+    }
+    useProtected().then((isProtected: boolean) => {
+      if (!isProtected) {
+        router.push('/auth');
+        return;
+      }
+    }).catch(() => {
+      router.push('/auth');
+    });
     const timer = setInterval(() => {
       setCurrentTime(new Date())
     }, 1000)
-
+    axios.get(apiUrl + '/vehicles/' + vehicleId, {
+      headers: {
+        'x-access-token': localStorage.getItem('token') || ''
+      }
+    }).then((response) => {
+      if (response.status === 200) {
+        let vehicle = response.data.vehicle;
+        let exited = vehicle.entry == null && vehicle.exit == null;
+        setIsExited(exited);
+        if (exited) {
+          router.push(`/pay-now?vehicleId=${vehicleId}`);
+          return;
+        }
+        let slot = response.data.slot;
+        let entry = new Date(vehicle.entry);
+        setEntryTime(entry);
+        setVehicle(vehicle);
+        setSlot(slot);
+      }
+    }).catch(error => {
+      console.error("There was an error fetching the parking slots!", error);
+    })
     return () => clearInterval(timer)
-  }, [])
+  }, [reload])
 
   useEffect(() => {
     const durationInHours = (currentTime.getTime() - entryTime.getTime()) / (1000 * 60 * 60)
@@ -46,11 +93,11 @@ export default function ParkingStatus() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Car className="h-5 w-5 text-primary" />
-              <span className="font-semibold">ABC 123</span>
+              <span className="font-semibold">{vehicle.lplate}</span>
             </div>
             <div className="flex items-center space-x-2">
               <MapPin className="h-5 w-5 text-primary" />
-              <span className="font-semibold">Slot A4</span>
+              <span className="font-semibold">Slot {slot?.slotType}{slot?.slotNumber}</span>
             </div>
           </div>
 
@@ -67,7 +114,7 @@ export default function ParkingStatus() {
               <Clock className="h-5 w-5 text-primary" />
               <span className="font-semibold text-lg">{formatDuration(entryTime, currentTime)}</span>
             </div>
-            <p className="text-sm text-gray-500">Entry Time: {entryTime.toLocaleTimeString()}</p>
+            <p className="text-sm text-gray-500">Entry Time: {moment(entryTime).format('DD-MM hh:MM A')}</p>
           </div>
 
           <div className="bg-primary/10 rounded-lg p-4 space-y-2">
@@ -79,9 +126,30 @@ export default function ParkingStatus() {
           </div>
         </CardContent>
         <CardFooter>
-          <Button className="w-full">Extend Parking Time</Button>
+          <Button className="w-full" onClick={() => {
+            setReload(!reload);
+            if (isExited) {
+              toast({
+                title: 'Success',
+                description: 'You have exited the parking lot successfully'
+              })
+            } else {
+              toast({
+                title: 'Error',
+                description: 'You have already exited the parking lot'
+              })
+            }
+          }}>Exit</Button>
         </CardFooter>
       </Card>
     </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ParkingStatus />
+    </Suspense>
   )
 }

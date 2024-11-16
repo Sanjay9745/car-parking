@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, Clock, CreditCard, Car, MapPin } from 'lucide-react'
+import useProtected from '@/hooks/useProtected'
+import { useRouter } from 'next/navigation'
 
 export default function ParkingPayment() {
   const [currentTime] = useState(new Date())
@@ -11,13 +13,21 @@ export default function ParkingPayment() {
   const [totalCost, setTotalCost] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
   const checkCircleRef = useRef<HTMLDivElement>(null)
-
+  const router = useRouter()
   useEffect(() => {
     const durationInHours = (currentTime.getTime() - entryTime.getTime()) / (1000 * 60 * 60)
     setTotalCost(Math.ceil(durationInHours * 2)) // $2 per hour
   }, [currentTime, entryTime])
 
   useEffect(() => {
+    useProtected().then((isProtected:boolean) => {
+      if (!isProtected) {
+        router.push('/auth');
+        return;
+      }
+     }).catch(() => {
+         router.push('/auth');
+     });
     setIsVisible(true)
     if (checkCircleRef.current) {
       checkCircleRef.current.style.transition = 'transform 0.5s ease-out'

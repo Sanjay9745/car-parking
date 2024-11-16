@@ -9,5 +9,8 @@ router.get('/', controllers.get);
 router.put('/', controllers.update);
 router.delete('/', controllers.delete);
 router.post('/login', controllers.login);
+router.get('/protected', userAuth, controllers.protected);
+router.post('/payment-pending', userAuth, controllers.paymentPending);
+router.post('/pay', userAuth, controllers.pay);
 
 module.exports = router;

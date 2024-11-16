@@ -17,6 +17,7 @@ import { Car, Plus, Search, Trash } from 'lucide-react'
 import axios from 'axios';
 import apiUrl from '@/constants/apiUrl'
 import { useRouter } from 'next/navigation'
+import useProtected from '@/hooks/useProtected'
 
 type Vehicle = {
   _id?: string;
@@ -44,6 +45,14 @@ export default function Vehicle() {
   });
 
   useEffect(()=>{
+    useProtected().then((isProtected:boolean) => {
+      if (!isProtected) {
+        router.push('/auth');
+        return;
+      }
+     }).catch(() => {
+         router.push('/auth');
+     });
     axios.get(apiUrl + '/vehicles/user', {
       headers: {
         'x-access-token': localStorage.getItem('token') || ''
