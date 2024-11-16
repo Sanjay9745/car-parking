@@ -29,14 +29,10 @@ const vehicleSchema = new mongoose.Schema({
     exit: {
         type: Date
     },
-    logs:[{
-        entry: {
-            type: Date
-        },
-        exit: {
-            type: Date
-        }
-    }]
+    logs:{
+        type: Array,
+        default: []
+    }
 });
 
 
