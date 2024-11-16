@@ -31,8 +31,7 @@ const vehicleSchema = new mongoose.Schema({
     },
     logs:[{
         entry: {
-            type: Date,
-            required: true
+            type: Date
         },
         exit: {
             type: Date
