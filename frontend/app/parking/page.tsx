@@ -1,16 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Car } from 'lucide-react'
 import axios from 'axios'
 import apiUrl from '@/constants/apiUrl'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function ParkingSlotSelection(): any {
+function ParkingSlotSelection(): any {
   const sections = ['A', 'B', 'C', 'D'];
   const [filter, setFilter] = useState('all');
   const router = useRouter();
@@ -23,24 +22,6 @@ export default function ParkingSlotSelection(): any {
       router.push('/vehicles');
       return;
     }
-    axios.get(apiUrl + '/vehicles/' + vehicleId, {
-      headers: {
-        'x-access-token': localStorage.getItem('token') || ''
-      }
-    }).then((response) => {
-      if (response.status === 200) {
-        if (response.data.park == 0) {
-          router.push('/vehicles');
-          return;
-        }else if (response.data.park == 10){
-          router.push('/parking-status?vehicleId=' + vehicleId);
-          return;
-        }
-      }
-    }).catch(error => {
-      console.error("There was an error fetching the vehicle!", error);
-      
-    })
     axios.get(apiUrl + '/parkingSlots', {
       headers: {
         'x-access-token': localStorage.getItem('token') || ''
@@ -141,5 +122,13 @@ export default function ParkingSlotSelection(): any {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ParkingSlotSelection />
+    </Suspense>
   )
 }
