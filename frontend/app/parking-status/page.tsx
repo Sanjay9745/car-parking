@@ -1,25 +1,25 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Clock, Car, CreditCard, MapPin } from 'lucide-react'
-import useProtected from '@/hooks/useProtected'
-import { useRouter, useSearchParams } from 'next/navigation'
-import axios from 'axios'
-import apiUrl from '@/constants/apiUrl'
+import { useState, useEffect, Suspense } from 'react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Clock, Car, CreditCard, MapPin } from 'lucide-react';
+import useProtected from '@/hooks/useProtected';
+import { useRouter, useSearchParams } from 'next/navigation';
+import axios from 'axios';
+import apiUrl from '@/constants/apiUrl';
 import moment from 'moment';
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '@/hooks/use-toast';
 
-const HOURLY_RATE = 2 // $2 per hour
+const HOURLY_RATE = 2; // $2 per hour
 
 function ParkingStatus() {
   const { toast } = useToast();
-  const [currentTime, setCurrentTime] = useState(new Date())
-  const [parkingAmount, setParkingAmount] = useState(0)
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [parkingAmount, setParkingAmount] = useState(0);
   const [progress, setProgress] = useState(0);
-  const [entryTime, setEntryTime] = useState(new Date());
+  const [entryTime, setEntryTime] = useState<Date | null>(null);
   const [vehicle, setVehicle] = useState<any>({});
   const [slot, setSlot] = useState<any>({});
   const router = useRouter();
@@ -33,6 +33,7 @@ function ParkingStatus() {
       router.push('/vehicles');
       return;
     }
+
     useProtected().then((isProtected: boolean) => {
       if (!isProtected) {
         router.push('/auth');
@@ -41,47 +42,52 @@ function ParkingStatus() {
     }).catch(() => {
       router.push('/auth');
     });
+
     const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 1000)
-    axios.get(apiUrl + '/vehicles/' + vehicleId, {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    axios.get(`${apiUrl}/vehicles/${vehicleId}`, {
       headers: {
         'x-access-token': localStorage.getItem('token') || ''
       }
     }).then((response) => {
       if (response.status === 200) {
-        let vehicle = response.data.vehicle;
-        let exited = vehicle.park == 15;
+        const vehicle = response.data.vehicle;
+        const exited = vehicle.park === 15;
         setIsExited(exited);
         if (exited) {
           router.push(`/pay-now?vehicleId=${vehicleId}`);
           return;
         }
-        let slot = response.data.slot;
-        let entry = moment(vehicle.entry);
+        const slot = response.data.slot;
+        const entry = moment(vehicle.entry).toDate();
         setEntryTime(entry);
         setVehicle(vehicle);
         setSlot(slot);
       }
     }).catch(error => {
       console.error("There was an error fetching the parking slots!", error);
-    })
-    return () => clearInterval(timer)
-  }, [reload])
+    });
+
+    return () => clearInterval(timer);
+  }, [reload]);
 
   useEffect(() => {
-    const durationInHours = (currentTime.getTime() - entryTime.getTime()) / (1000 * 60 * 60)
-    setParkingAmount(Math.ceil(durationInHours * HOURLY_RATE))
-    setProgress(Math.min((durationInHours / 24) * 100, 100)) // Assuming max parking duration is 24 hours
-  }, [currentTime, entryTime])
-  const formatDuration = (start: any, end: any) => {
-      const startMoment = moment(start);
-      const endMoment = moment(end);
-      const durationInMinutes = Math.floor(moment.duration(endMoment.diff(startMoment)).asMinutes());
-      const hours = Math.floor(durationInMinutes / 60);
-      const minutes = durationInMinutes % 60;
-      return `${hours}h ${minutes}m`;
-   }
+    if (entryTime) {
+      const durationInHours = (currentTime.getTime() - entryTime.getTime()) / (1000 * 60 * 60);
+      setParkingAmount(Math.max(0, Math.ceil(durationInHours * HOURLY_RATE)));
+      setProgress(Math.min((durationInHours / 24) * 100, 100)); // Assuming max parking duration is 24 hours
+    }
+  }, [currentTime, entryTime]);
+
+  const formatDuration = (start: Date, end: Date) => {
+    const durationInMinutes = Math.floor(moment.duration(moment(end).diff(moment(start))).asMinutes());
+    const hours = Math.floor(durationInMinutes / 60);
+    const minutes = durationInMinutes % 60;
+    return `${hours}h ${minutes}m`;
+  };
+
   return (
     <div className="container mx-auto p-4 max-w-md">
       <Card className="w-full">
@@ -92,11 +98,11 @@ function ParkingStatus() {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Car className="h-5 w-5 text-primary" />
-              <span className="font-semibold">{vehicle.lplate}</span>
+              <span className="font-semibold">{vehicle.lplate || 'N/A'}</span>
             </div>
             <div className="flex items-center space-x-2">
               <MapPin className="h-5 w-5 text-primary" />
-              <span className="font-semibold">Slot {slot?.slotType}{slot?.slotNumber}</span>
+              <span className="font-semibold">Slot {slot?.slotType || ''}{slot?.slotNumber || ''}</span>
             </div>
           </div>
 
@@ -111,9 +117,9 @@ function ParkingStatus() {
           <div className="bg-primary/10 rounded-lg p-4 space-y-2">
             <div className="flex items-center space-x-2">
               <Clock className="h-5 w-5 text-primary" />
-              <span className="font-semibold text-lg">{formatDuration(entryTime, currentTime)}</span>
+              <span className="font-semibold text-lg">{entryTime ? formatDuration(entryTime, currentTime) : 'Calculating...'}</span>
             </div>
-            <p className="text-sm text-gray-500">Entry Time: {moment(entryTime).format('DD-MM hh:MM A')}</p>
+            <p className="text-sm text-gray-500">Entry Time: {entryTime ? moment(entryTime).format('DD-MM-YYYY hh:mm A') : 'N/A'}</p>
           </div>
 
           <div className="bg-primary/10 rounded-lg p-4 space-y-2">
@@ -131,18 +137,18 @@ function ParkingStatus() {
               toast({
                 title: 'Success',
                 description: 'You have exited the parking lot successfully'
-              })
+              });
             } else {
               toast({
                 title: 'Error',
                 description: 'You have already exited the parking lot'
-              })
+              });
             }
           }}>Exit</Button>
         </CardFooter>
       </Card>
     </div>
-  )
+  );
 }
 
 export default function Page() {
@@ -150,5 +156,5 @@ export default function Page() {
     <Suspense fallback={<div>Loading...</div>}>
       <ParkingStatus />
     </Suspense>
-  )
+  );
 }
