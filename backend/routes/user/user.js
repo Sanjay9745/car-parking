@@ -31,6 +31,10 @@ exports.protected = async (req, res) => {
 // CREATE a new user
 exports.create = async (req, res) => {
     try {
+        const userExists = await User.findOne({ email: req.body.email });
+        if (userExists) {
+            return res.status(400).json({ message: 'User already exists' });
+        }
         const hashedPassword = await bcrypt.hash(req.body.password, saltRounds);
         const user = new User({
             name: req.body.name,
