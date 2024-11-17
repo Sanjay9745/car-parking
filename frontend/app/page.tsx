@@ -2,12 +2,11 @@
 
 import useProtected from "@/hooks/useProtected";
 import { useRouter } from "next/navigation";
-
-const { useEffect } = require('react');
+import { useLayoutEffect } from "react";
 
 export default function Home() {
   const router = useRouter();
-   useEffect(()=> {
+   useLayoutEffect(()=> {
    useProtected().then((isProtected:boolean) => {
      if (!isProtected) {
        router.push('/auth');
@@ -23,7 +22,7 @@ export default function Home() {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen py-2">
       <h1 className="text-6xl font-bold">
-        Welcome to <a className="text-blue-600" href="https://nextjs.org">Next.js!</a>
+        Welcome to <a className="text-blue-600" href="https://nextjs.org">Parking</a>
       </h1>
     </div>
   )

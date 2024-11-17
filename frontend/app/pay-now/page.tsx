@@ -97,7 +97,7 @@ import moment from 'moment';
   const formatDuration = (start: any, end: any) => {
     const startMoment = moment(start);
     const endMoment = moment(end);
-    const durationInMinutes = moment.duration(endMoment.diff(startMoment)).asMinutes();
+    const durationInMinutes = Math.floor(moment.duration(endMoment.diff(startMoment)).asMinutes());
     const hours = Math.floor(durationInMinutes / 60);
     const minutes = durationInMinutes % 60;
     return `${hours}h ${minutes}m`;
@@ -129,28 +129,21 @@ import moment from 'moment';
                 <Clock className="w-5 h-5 text-gray-500 mr-2" />
                 <span>Duration</span>
               </div>
-              <span className="font-semibold">{formatDuration(log?.entry, log?.exit)}</span>
+              <span className="font-semibold">{formatDuration(vehicle?.entry, vehicle?.exit)}</span>
             </div>
             <div className="flex justify-between items-center">
               <div className="flex items-center">
                 <CreditCard className="w-5 h-5 text-gray-500 mr-2" />
                 <span>Total Cost</span>
               </div>
-              <span className="font-semibold">${log?.cost?.toFixed(2)}</span>
+              <span className="font-semibold">${vehicle?.cost?.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center">
               <div className="flex items-center">
                 <Car className="w-5 h-5 text-gray-500 mr-2" />
                 <span>Vehicle</span>
               </div>
-              <span className="font-semibold">ABC 123</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <div className="flex items-center">
-                <MapPin className="w-5 h-5 text-gray-500 mr-2" />
-                <span>Slot</span>
-              </div>
-              <span className="font-semibold">A4</span>
+              <span className="font-semibold">{vehicle.lplate}</span>
             </div>
           </div>
           <p className="text-sm text-gray-500 text-center">
