@@ -4,6 +4,7 @@ const adminAuth = require('../../middlewares/adminAuth');
 const router = express.Router();
 
 router.post('/login', controller.login);
+router.get('/protected',adminAuth, controller.protected);
 router.get('/user/list',adminAuth, controller.getAllUsers);
 router.get('/user/:id',adminAuth, controller.getUserById);
 router.put('/user/:id',adminAuth, controller.updateUserById);

@@ -91,3 +91,11 @@ exports.deleteUserById = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
+
+exports.protected = async (req, res) => {
+    try {
+        res.json({ message: 'You are an admin' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+}

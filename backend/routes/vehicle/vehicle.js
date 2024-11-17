@@ -38,18 +38,25 @@ exports.getVehicleById = async (req, res) => {
         res.status(500).json({ message: err.message });
     }
 };
-// GET a vehicle by license plate
 exports.getVehicleByLplate = async (req, res) => {
     try {
-        const vehicle = await Vehicle.findOne({ lplate: req.params.lplate });
-        if (vehicle == null) {
+        const vehicle = await Vehicle.findOne({ lplate: req.params.id });
+        if (!vehicle) {
             return res.status(404).json({ message: 'Cannot find vehicle' });
         }
-        res.json(vehicle);
+
+        const parkingSlot = await ParkingSlot.findOne({ vehicle: vehicle._id });
+        const response = {
+            vehicle,
+            slot: parkingSlot || null
+        };
+
+        res.json(response);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 };
+
 // CREATE a new vehicle
 exports.createVehicle = async (req, res) => {
     let lplate = req.body.lplate;

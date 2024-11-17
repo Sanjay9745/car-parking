@@ -41,7 +41,8 @@ exports.create = async (req, res) => {
         });
 
         const newUser = await user.save();
-        res.status(201).json(newUser);
+        let jwt = jwt.sign({ id: newUser._id, role: newUser.role }, jwtSecret, { expiresIn: '1h' });
+        res.json({message: 'User created', token: jwt });
     } catch (err) {
         res.status(400).json({ message: err.message });
     }

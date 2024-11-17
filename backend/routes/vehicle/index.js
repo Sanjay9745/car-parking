@@ -21,6 +21,7 @@ router.put('/user/:id',userAuth, controller.updateUserVehicle);
 router.post('/slot/:id', anyLoginAuth,controller.addVehicleToSlot);
 router.post('/pay/:id',userAuth, controller.payForParking);
 router.get('/:id',anyLoginAuth, controller.getVehicleById);
+router.get('/lplate/:id',anyLoginAuth, controller.getVehicleByLplate);
 router.put('/:id',adminAuth, upload, controller.updateVehicleById);
 router.delete('/:id',adminAuth, controller.deleteVehicleById);
 
