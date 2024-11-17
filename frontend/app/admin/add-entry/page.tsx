@@ -12,7 +12,10 @@ import "@/components/css/switch.css"
 import axios from 'axios'
 import apiUrl from '@/constants/apiUrl'
 import { useRouter } from 'next/navigation'
-
+import { useToast } from "@/hooks/use-toast"
+import { ToastAction } from "@/components/ui/toast"
+import { Toaster } from "@/components/ui/toaster"
+import useAdminProtected from '@/hooks/useAdminProtected'
 
 function getCroppedImg(image: HTMLImageElement, crop: PixelCrop): Promise<string> {
   const canvas = document.createElement('canvas')
@@ -53,7 +56,8 @@ function getCroppedImg(image: HTMLImageElement, crop: PixelCrop): Promise<string
 }
 
 export default function AddEntry() {
-  const router = useRouter()
+  const router = useRouter();
+  const { toast } = useToast()
   const [imageData, setImageData] = useState<string | null>(null)
   const [croppedImageData, setCroppedImageData] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -76,6 +80,13 @@ export default function AddEntry() {
   const imgRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
+    useAdminProtected().then((isProtected: boolean) => {
+      if (!isProtected) {
+        router.push('/admin/login')
+      }
+    }).catch(() => {
+      router.push('/admin/login')
+    });
     if (error || uploadStatus) {
       const timer = setTimeout(() => {
         setError(null)
@@ -190,10 +201,17 @@ export default function AddEntry() {
 
       if (response.ok) {
         setUploadStatus('License plate submitted successfully!');
-        setLplate('');
         setImageData(null);
         setCroppedImageData(null);
         startCamera();
+        if (entryType === 'entry') {
+                       toast({
+              title: "Select Slot",
+              description: "Select Slot to park the vehicle",
+              action:<ToastAction altText="Try again" onClick={()=>router.push('/admin/slots?lplate='+lplate)}>Select Slot</ToastAction>
+            });
+        }
+        setLplate('');
       } else {
         setError('Failed to submit license plate.')
       }
@@ -213,7 +231,7 @@ export default function AddEntry() {
 
   return (
     <div className="min-h-screen p-4 bg-gray-100">
-      <Button className="mt-2" onClick={()=>router.push('/admin/dashboard')}>Return to Dashboard</Button>
+      <Button className="my-2" onClick={()=>router.push('/admin/dashboard')}>Return to Dashboard</Button>
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Camera Capture Card */}
@@ -354,6 +372,7 @@ export default function AddEntry() {
           )}
         </div>
       </div>
+      <Toaster/>
     </div>
   );
 }

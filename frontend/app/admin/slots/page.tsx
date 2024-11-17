@@ -9,18 +9,27 @@ import { Car } from 'lucide-react'
 import axios from 'axios'
 import apiUrl from '@/constants/apiUrl'
 import { useRouter, useSearchParams } from 'next/navigation'
-import useProtected from '@/hooks/useProtected'
 import { Switch } from "@/components/ui/switch"
+import useAdminProtected from '@/hooks/useAdminProtected'
 
 function ParkingSlotSelection(): any {
   const sections = ['A', 'B', 'C', 'D'];
   const [filter, setFilter] = useState('all');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const vehicleId = searchParams.get('vehicleId');
+  const [vehicleId, setVehicleId] = useState('');
+  let lplate = searchParams.get('lplate');
+
   const [parkingSlots, setParkingSlots] = useState<any>([]);
     const [reload, setReload] = useState(false);
   useEffect(() => {
+    useAdminProtected().then((isProtected: boolean) => {
+      if (!isProtected) {
+        router.push('/admin/login')
+      }
+    }).catch(() => {
+      router.push('/admin/login')
+    });
     axios.get(apiUrl + '/parkingSlots', {
       headers: {
         'x-access-token': localStorage.getItem('adminToken') || ''
@@ -33,7 +42,25 @@ function ParkingSlotSelection(): any {
       console.error("There was an error fetching the parking slots!", error);
     });
   }, [vehicleId, router,reload]);
-
+  useEffect(() => {
+    if (lplate) {
+      axios.get(apiUrl + '/vehicles/lplate/' + lplate, {
+        headers: {
+          'x-access-token': localStorage.getItem('adminToken') || ''
+        }
+      }).then((response) => {
+        if (response.status === 200) {
+          if (response.data.vehicle.park == 10) {
+            router.push(`/admin/add-entry`);
+            return;
+          }
+          setVehicleId(response.data.vehicle._id);
+        }
+      }).catch(error => {
+        console.error("There was an error fetching the vehicle!", error);
+      });
+    }
+  }, [lplate]);
   const filteredSlots = (section: any) => {
     return parkingSlots
       .filter((slot: any) => slot.slotType === section) // Filter by slotType
@@ -52,14 +79,22 @@ function ParkingSlotSelection(): any {
   };
 
   const handleOccupied = (slot: any) => {
-    axios.post(apiUrl + '/park/changeStatus/' + vehicleId, {
+    if (!vehicleId) {
+      return;
+    }
+    if (slot.isOccupied) {
+      toggleOccupied(slot);
+      return;
+    }
+    axios.post(apiUrl + '/vehicles/slot/' + vehicleId, {
       slotId: slot.id
     }, {
       headers: {
-        'x-access-token': localStorage.getItem('token') || ''
+        'x-access-token': localStorage.getItem('adminToken') || ''
       }
     }).then((response) => {
         if (response.status === 200) {
+          router.push(`/admin/add-entry`);
             setReload(!reload);
         }
     }).catch(error => {
@@ -87,7 +122,7 @@ function ParkingSlotSelection(): any {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Select Parking Slot</h1>
-
+      <Button className="my-2" onClick={()=>router.push('/admin/dashboard')}>Return to Dashboard</Button>
       <div className="mb-4">
         <Select onValueChange={setFilter} defaultValue="all">
           <SelectTrigger className="w-[180px]">
@@ -120,7 +155,14 @@ function ParkingSlotSelection(): any {
                       <CardContent className="p-4 flex flex-col items-center justify-center">
                         <Car className={`h-8 w-8 ${slot.isOccupied ? 'text-red-500' : 'text-green-500'} mb-2`} />
                         <p className="text-lg font-semibold mb-2">{section}{slot.number}</p>
-                
+                        {
+                          lplate && (
+                            <div className="mt-2">
+                            <Button onClick={() => handleOccupied(slot)}>{slot.isOccupied ? 'Unoccupy' : 'Occupy'}</Button>
+                          </div>
+                          )
+                        }
+                        
                         <div className="mt-2">
                           <Switch
                             checked={slot.isOccupied}

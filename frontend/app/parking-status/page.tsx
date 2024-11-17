@@ -11,6 +11,7 @@ import axios from 'axios';
 import apiUrl from '@/constants/apiUrl';
 import moment from 'moment';
 import { useToast } from '@/hooks/use-toast';
+import useAdminProtected from '@/hooks/useAdminProtected';
 
 const HOURLY_RATE = 2; // $2 per hour
 
@@ -33,15 +34,28 @@ function ParkingStatus() {
       router.push('/vehicles');
       return;
     }
-
-    useProtected().then((isProtected: boolean) => {
-      if (!isProtected) {
+    if (localStorage.getItem('adminToken')){
+      useAdminProtected().then((isProtected: boolean) => {
+        if (!isProtected) {
+          router.push('/auth');
+          return;
+        }
+      }).catch(() => {
         router.push('/auth');
-        return;
-      }
-    }).catch(() => {
+      });
+    }else if (localStorage.getItem('token')){
+      useProtected().then((isProtected: boolean) => {
+        if (!isProtected) {
+          router.push('/auth');
+          return;
+        }
+      }).catch(() => {
+        router.push('/auth');
+      });
+    }  else {
       router.push('/auth');
-    });
+      return;
+    }
 
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -49,7 +63,7 @@ function ParkingStatus() {
 
     axios.get(`${apiUrl}/vehicles/${vehicleId}`, {
       headers: {
-        'x-access-token': localStorage.getItem('token') || ''
+        'x-access-token': localStorage.getItem('adminToken') || localStorage.getItem('token') || ''
       }
     }).then((response) => {
       if (response.status === 200) {
@@ -93,6 +107,9 @@ function ParkingStatus() {
       <Card className="w-full">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Parking Status</CardTitle>
+      {
+        localStorage.getItem('adminToken') ? <Button className="w-full" onClick={() => router.push('/admin/dashboard')}>Back to Admin</Button> : <Button className="w-full" onClick={() => router.push('/vehicles')}>Back to Vehicles</Button>
+      }
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center justify-between">

@@ -41,7 +41,11 @@ export default function AuthPage() {
         toast({
           title: "Sign up successful!"
         })
-        console.log(result)
+        if (result.status === 200) {
+          let token = result.data.token;
+          localStorage.setItem("token", token);
+          router.push('/vehicles')
+        }
       }       
     } catch (error: any) {
       toast({

@@ -25,6 +25,9 @@ import { Car, Plus, Search, Trash, Pen } from 'lucide-react'
 import axios from 'axios';
 import apiUrl from '@/constants/apiUrl'
 import { useRouter } from 'next/navigation'
+import { useToast } from "@/hooks/use-toast"
+import { Toaster } from "@/components/ui/toaster"
+import useAdminProtected from '@/hooks/useAdminProtected'
 type Vehicle = {
     _id?: string;
     id: string;
@@ -51,9 +54,6 @@ export default function Dashboard() {
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
   const [vehicleToEdit, setVehicleToEdit] = useState<Vehicle | null>(null);
   const [reload, setReload] = useState(false);
-  const [slots, setSlots] = useState<any[]>([]);
-const [slotNumbers, setSlotNumbers] = useState<any[]>([]);
-  let [slotTypes, setSlotTypes] = useState<any[]>([]);
   const router = useRouter();
   const [newVehicle, setNewVehicle] = useState<Omit<Vehicle, 'id'>>({
     make: '',
@@ -61,9 +61,15 @@ const [slotNumbers, setSlotNumbers] = useState<any[]>([]);
     year: new Date().getFullYear(),
     lplate: '',
   });
-
+const { toast } = useToast();
   useEffect(()=>{
-   
+    useAdminProtected().then((isProtected: boolean) => {
+      if (!isProtected) {
+        router.push('/admin/login')
+      }
+    }).catch(() => {
+      router.push('/admin/login')
+    });
     axios.get(apiUrl + '/vehicles/', {
       headers: {
         'x-access-token': localStorage.getItem('adminToken') || ''
@@ -71,22 +77,6 @@ const [slotNumbers, setSlotNumbers] = useState<any[]>([]);
     })
     .then(response => {
       setVehicles(response.data);
-      axios.get(apiUrl + '/parkingSlots', {
-        headers: {
-            'x-access-token': localStorage.getItem('adminToken') || ''
-        }
-    }).then((res) => {
-        if (res.status === 200) {
-            setSlots(res.data);
-            let slotTypes = res.data.map((slot: any) => slot.slotType);
-            setSlotTypes(slotTypes);
-            let slotNumbers = res.data.filter((slot:any)=>slot.slotNumber == response.data.slot.slotNumber);
-            setSlotNumbers(slotNumbers);
-        }
-    }
-    ).catch(error => {
-        console.error("There was an error fetching the parking slots!", error);
-    });
     })
     .catch(error => {
       console.error("There was an error fetching the vehicles!", error);
@@ -147,7 +137,6 @@ const [slotNumbers, setSlotNumbers] = useState<any[]>([]);
         }
       })
       .then(response => {
-        console.log(response.data);
         setReload(!reload);
         setIsEditModalOpen(false);
         setVehicleToEdit(null);
@@ -170,7 +159,6 @@ const [slotNumbers, setSlotNumbers] = useState<any[]>([]);
         }
       })
       .then(response => {
-        console.log(response.data);
         setReload(!reload);
         setIsDeleteModalOpen(false);
         setVehicleToDelete(null);
@@ -180,12 +168,6 @@ const [slotNumbers, setSlotNumbers] = useState<any[]>([]);
       });
     }
   }
-  function handleSlotChange(e: any) {
-    setVehicleToEdit(vehicleToEdit ? { ...vehicleToEdit, slotType: e.target.value } : null);
-    let slot:any = slots.filter((slot: any) => slot.slotType == e.target.value);
-    setSlotNumbers(slot.slots);
-    console.log(slot.slots);
-  }
 
   return (
     <div className="container mx-auto p-4">
@@ -193,6 +175,10 @@ const [slotNumbers, setSlotNumbers] = useState<any[]>([]);
       <div className="flex gap-4 mb-4">
         <Button onClick={() => router.push('/admin/add-entry')}>Add Entry</Button>
         <Button onClick={() => router.push('/admin/slots')}>Slots</Button>
+        <Button onClick={() => {
+          localStorage.removeItem('adminToken');
+          router.push('/admin/login');
+        }}>Logout</Button>
     </div>
       
       <div className="flex gap-4 mb-4">
@@ -295,7 +281,7 @@ const [slotNumbers, setSlotNumbers] = useState<any[]>([]);
                     <Button 
                       variant="outline" 
                       className="ml-auto" 
-                      onClick={()=>router.push(`/parking?vehicleId=${vehicle._id}`)}
+                      onClick={()=>router.push(`/admin/slots?lplate=${vehicle.lplate}`)}
                     >
                       Select
                     </Button>
@@ -311,18 +297,7 @@ const [slotNumbers, setSlotNumbers] = useState<any[]>([]);
                       Select
                     </Button>
                   </>
-                ) : vehicle.park === 15 ? (
-                  <>
-                    <span className="text-sm text-blue-500">Payment</span>
-                    <Button 
-                      variant="outline" 
-                      className="ml-auto" 
-                      onClick={()=>router.push(`/pay-now?vehicleId=${vehicle._id}`)}
-                    >
-                      Select
-                    </Button>
-                  </>
-                ) : null}
+                )  : null}
                 <Button variant="outline" className='ml-3' onClick={() => handleEditVehicle(vehicle)}>
                   <Pen className="h-4 w-4 text-blue-500" />
                 </Button>
@@ -530,6 +505,7 @@ const [slotNumbers, setSlotNumbers] = useState<any[]>([]);
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Toaster />
     </div>
   )
 }
