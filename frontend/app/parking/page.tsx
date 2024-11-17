@@ -43,6 +43,17 @@ function ParkingSlotSelection(): any {
     }).catch(error => {
       console.error("There was an error fetching the parking slots!", error);
     });
+    axios.get(apiUrl + '/vehicles/' + vehicleId, {
+      headers: {
+        'x-access-token': localStorage.getItem('token') || ''
+      }
+    }).then((response) => {
+      if (response.status === 200) {
+        let vehicle = response.data.vehicle;
+        if (vehicle.park != 5) {
+          router.push('/vehicles');
+        }
+      }});
   }, [vehicleId, router]);
 
   const filteredSlots = (section: any) => {

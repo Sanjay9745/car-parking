@@ -1,24 +1,33 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, Clock, CreditCard, Car, MapPin } from 'lucide-react'
 import useProtected from '@/hooks/useProtected'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import axios from 'axios'
+import apiUrl from '@/constants/apiUrl'
+import moment from 'moment';
 
-export default function ParkingPayment() {
+ function PayNow() {
   const [currentTime] = useState(new Date())
-  const [entryTime] = useState(new Date(currentTime.getTime() - 2 * 60 * 60 * 1000)) // 2 hours ago
   const [totalCost, setTotalCost] = useState(0)
   const [isVisible, setIsVisible] = useState(false)
   const checkCircleRef = useRef<HTMLDivElement>(null)
+  const [entryTime, setEntryTime] = useState(new Date());
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const vehicleId = searchParams.get('vehicleId')
+  const [vehicle, setVehicle] = useState<any>({})
+  const [slot, setSlot] = useState<any>({})
+  const [isExited, setIsExited] = useState(false)
+  const [reload, setReload] = useState(false)
+  const [log, setLog] = useState<any>({});
   useEffect(() => {
     const durationInHours = (currentTime.getTime() - entryTime.getTime()) / (1000 * 60 * 60)
     setTotalCost(Math.ceil(durationInHours * 2)) // $2 per hour
   }, [currentTime, entryTime])
-
   useEffect(() => {
     useProtected().then((isProtected:boolean) => {
       if (!isProtected) {
@@ -34,12 +43,64 @@ export default function ParkingPayment() {
       checkCircleRef.current.style.transform = 'scale(1)'
     }
   }, [])
+  useEffect(() => {
+    axios.get(apiUrl + '/vehicles/' + vehicleId, {
+      headers: {
+        'x-access-token': localStorage.getItem('token') || ''
+      }
+    }).then((response) => {
+      if (response.status === 200) {
+        let vehicle = response.data.vehicle;
+        let exited = vehicle.park == 15;
+        setIsExited(exited);
+        if (!exited) {
+          router.push(`/parking-status?vehicleId=${vehicleId}`);
+          return;
+        }
+        let slot = response.data.slot;
+        setVehicle(vehicle);
+        setSlot(slot);
+        let logs = response.data.logs;
+        let entry = new Date(vehicle.entry);
+        setEntryTime(entry);
+        if (!logs.length) {
+          router.push(`/vehicles`);
+          return;
+        }
+        let latestLog = logs
+          ?.filter((log: any) => log.exit && !log.paid)
+          ?.sort((a: any, b: any) => new Date(b.exit).getTime() - new Date(a.exit).getTime())[0];
+        
+        if (latestLog) {
+          setLog(latestLog);
+        }
+      }
+    }).catch(error => {
+      console.error("There was an error fetching the parking slots!", error);
+    })
+  }, [reload]);
 
-  const formatDuration = (start: Date, end: Date) => {
-    const durationInMinutes = Math.floor((end.getTime() - start.getTime()) / (1000 * 60))
-    const hours = Math.floor(durationInMinutes / 60)
-    const minutes = durationInMinutes % 60
-    return `${hours}h ${minutes}m`
+  const handlePay = () => {
+    axios.post(apiUrl + '/vehicles/pay/'+vehicleId, {}, {
+      headers: {
+        'x-access-token': localStorage.getItem('token') || ''
+      }
+    }).then((response) => {
+      if (response.status === 200) {
+        router.push(`/thankyou`);
+      }
+    }).catch(error => {
+      console.error("There was an error fetching the parking slots!", error);
+    })
+  }
+
+  const formatDuration = (start: any, end: any) => {
+    const startMoment = moment(start);
+    const endMoment = moment(end);
+    const durationInMinutes = moment.duration(endMoment.diff(startMoment)).asMinutes();
+    const hours = Math.floor(durationInMinutes / 60);
+    const minutes = durationInMinutes % 60;
+    return `${hours}h ${minutes}m`;
   }
 
   return (
@@ -68,14 +129,14 @@ export default function ParkingPayment() {
                 <Clock className="w-5 h-5 text-gray-500 mr-2" />
                 <span>Duration</span>
               </div>
-              <span className="font-semibold">{formatDuration(entryTime, currentTime)}</span>
+              <span className="font-semibold">{formatDuration(log?.entry, log?.exit)}</span>
             </div>
             <div className="flex justify-between items-center">
               <div className="flex items-center">
                 <CreditCard className="w-5 h-5 text-gray-500 mr-2" />
                 <span>Total Cost</span>
               </div>
-              <span className="font-semibold">${totalCost.toFixed(2)}</span>
+              <span className="font-semibold">${log?.cost?.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center">
               <div className="flex items-center">
@@ -97,9 +158,16 @@ export default function ParkingPayment() {
           </p>
         </CardContent>
         <CardFooter className="flex justify-center">
-          <Button className="w-full">Pay Now</Button>
+          <Button className="w-full" onClick={handlePay}>Pay Now</Button>
         </CardFooter>
       </Card>
     </div>
+  )
+}
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <PayNow />
+    </Suspense>
   )
 }

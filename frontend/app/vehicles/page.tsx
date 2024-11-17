@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Car, Plus, Search, Trash } from 'lucide-react'
+import { Car, Plus, Search, Trash, Pen } from 'lucide-react'
 import axios from 'axios';
 import apiUrl from '@/constants/apiUrl'
 import { useRouter } from 'next/navigation'
@@ -33,8 +33,10 @@ export default function Vehicle() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null);
+  const [vehicleToEdit, setVehicleToEdit] = useState<Vehicle | null>(null);
   const [reload, setReload] = useState(false);
   const router = useRouter();
   const [newVehicle, setNewVehicle] = useState<Omit<Vehicle, 'id'>>({
@@ -92,6 +94,34 @@ export default function Vehicle() {
     .catch(error => {
       console.error("There was an error adding the vehicle!", error);
     });
+  }
+
+  const handleEditVehicle = (vehicle: Vehicle) => {
+    setVehicleToEdit(vehicle);
+    setIsEditModalOpen(true);
+  }
+
+  const confirmEditVehicle = () => {
+    if (vehicleToEdit && vehicleToEdit._id) {
+      axios.put(apiUrl + `/vehicles/user/${vehicleToEdit._id}`, {
+        make: vehicleToEdit.make,
+        model: vehicleToEdit.model,
+        year: vehicleToEdit.year
+      }, {
+        headers: {
+          'x-access-token': localStorage.getItem('token') || ''
+        }
+      })
+      .then(response => {
+        console.log(response.data);
+        setReload(!reload);
+        setIsEditModalOpen(false);
+        setVehicleToEdit(null);
+      })
+      .catch(error => {
+        console.error("There was an error updating the vehicle!", error);
+      });
+    }
   }
 
   const handleDeleteVehicle = (vehicle: Vehicle) => {
@@ -202,40 +232,124 @@ export default function Vehicle() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredVehicles.map((vehicle) => (
-          <div key={vehicle.id} className="border rounded-lg p-4 flex items-center space-x-4">
-            <Car className="h-12 w-12 text-gray-400" />
-            <div>
-              <h2 className="font-semibold">{vehicle.make} {vehicle.model}</h2>
-              <p className="text-sm text-gray-500">Year: {vehicle.year}</p>
-              <p className="text-sm text-gray-500">License Plate: {vehicle.lplate}</p>
+          <div key={vehicle.id} className="border rounded-lg p-4">
+            <div className="flex items-center space-x-4 mb-2">
+              <Car className="h-12 w-12 text-gray-400" />
+              <div>
+                <h2 className="font-semibold">{vehicle.make} {vehicle.model}</h2>
+                <p className="text-sm text-gray-500">Year: {vehicle.year}</p>
+                <p className="text-sm text-gray-500">License Plate: {vehicle.lplate}</p>
+              </div>
             </div>
-            {
-              vehicle.park === 0 ? (
-                <span className="text-sm text-red-500 ml-auto">Not in Parking Zone</span>
-              ) : vehicle.park === 5 ? (
-                <>
-                  <span className="text-sm text-yellow-500 ml-auto">Parking</span>
-                  <Button variant="outline" className="ml-auto" onClick={()=>router.push(`/parking?vehicleId=${vehicle._id}`)}>Select</Button>
-                </>
-              ) : vehicle.park === 10 ? (
-                <>
-                  <span className="text-sm text-green-500 ml-auto">Parked</span>
-                  <Button variant="outline" className="ml-auto" onClick={()=>router.push(`/parking-status?vehicleId=${vehicle._id}`)}>Select</Button>
-                </>
-              ) : null
-            }
-            <Button variant="outline" className="ml-2" onClick={() => handleDeleteVehicle(vehicle)}>
-              <Trash className="h-4 w-4 text-red-500" />
-            </Button>
+            
+            <div className="flex flex-col md:mt-2 space-y-2">
+              <div className="flex items-center justify-between">
+                {vehicle.park === 0 ? (
+                  <span className="text-sm text-red-500 whitespace-nowrap">Not in Zone</span>
+                ) : vehicle.park === 5 ? (
+                  <>
+                    <span className="text-sm text-yellow-500">Parking</span>
+                    <Button 
+                      variant="outline" 
+                      className="ml-auto" 
+                      onClick={()=>router.push(`/parking?vehicleId=${vehicle._id}`)}
+                    >
+                      Select
+                    </Button>
+                  </>
+                ) : vehicle.park === 10 ? (
+                  <>
+                    <span className="text-sm text-green-500">Parked</span>
+                    <Button 
+                      variant="outline" 
+                      className="ml-auto" 
+                      onClick={()=>router.push(`/parking-status?vehicleId=${vehicle._id}`)}
+                    >
+                      Select
+                    </Button>
+                  </>
+                ) : vehicle.park === 15 ? (
+                  <>
+                    <span className="text-sm text-blue-500">Payment</span>
+                    <Button 
+                      variant="outline" 
+                      className="ml-auto" 
+                      onClick={()=>router.push(`/pay-now?vehicleId=${vehicle._id}`)}
+                    >
+                      Select
+                    </Button>
+                  </>
+                ) : null}
+                <Button variant="outline" className='ml-3' onClick={() => handleEditVehicle(vehicle)}>
+                  <Pen className="h-4 w-4 text-blue-500" />
+                </Button>
+                <Button variant="outline"  className='ml-3' onClick={() => handleDeleteVehicle(vehicle)}>
+                  <Trash className="h-3 w-4 text-red-500" />
+                </Button>
+              </div>
+              
+           
+
+            </div>
           </div>
         ))}
       </div>
-
       {filteredVehicles.length === 0 && (
         <div className="text-center py-8">
           <p className="text-gray-500">No vehicles found. Try a different search or add a new vehicle.</p>
         </div>
       )}
+
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Vehicle</DialogTitle>
+            <DialogDescription>
+              Update the details of your vehicle here. Click save when you're done.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-make" className="text-right">
+                Make
+              </Label>
+              <Input
+                id="edit-make"
+                value={vehicleToEdit?.make || ''}
+                onChange={(e) => setVehicleToEdit(vehicleToEdit ? { ...vehicleToEdit, make: e.target.value } : null)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-model" className="text-right">
+                Model
+              </Label>
+              <Input
+                id="edit-model"
+                value={vehicleToEdit?.model || ''}
+                onChange={(e) => setVehicleToEdit(vehicleToEdit ? { ...vehicleToEdit, model: e.target.value } : null)}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-year" className="text-right">
+                Year
+              </Label>
+              <Input
+                id="edit-year"
+                type="number"
+                value={vehicleToEdit?.year || ''}
+                onChange={(e) => setVehicleToEdit(vehicleToEdit ? { ...vehicleToEdit, year: parseInt(e.target.value) } : null)}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+            <Button type="submit" onClick={confirmEditVehicle}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <DialogContent>

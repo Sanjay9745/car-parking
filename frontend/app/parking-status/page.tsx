@@ -51,7 +51,7 @@ function ParkingStatus() {
     }).then((response) => {
       if (response.status === 200) {
         let vehicle = response.data.vehicle;
-        let exited = vehicle.entry == null && vehicle.exit == null;
+        let exited = vehicle.park == 15;
         setIsExited(exited);
         if (exited) {
           router.push(`/pay-now?vehicleId=${vehicleId}`);

@@ -5,23 +5,75 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
-import { CameraIcon, UploadIcon, RefreshCwIcon } from 'lucide-react'
+import { CameraIcon, UploadIcon, RefreshCwIcon, CropIcon, Check } from 'lucide-react'
+import ReactCrop, { Crop, PixelCrop } from 'react-image-crop'
+import 'react-image-crop/dist/ReactCrop.css'
 import "@/components/css/switch.css"
-import axios from 'axios';
-
+import axios from 'axios'
 import apiUrl from '@/constants/apiUrl'
+import { useRouter } from 'next/navigation'
 
-export default function CameraCapture() {
+
+function getCroppedImg(image: HTMLImageElement, crop: PixelCrop): Promise<string> {
+  const canvas = document.createElement('canvas')
+  const scaleX = image.naturalWidth / image.width
+  const scaleY = image.naturalHeight / image.height
+  canvas.width = crop.width
+  canvas.height = crop.height
+  const ctx = canvas.getContext('2d')
+
+  if (!ctx) {
+    throw new Error('No 2d context')
+  }
+
+  ctx.drawImage(
+    image,
+    crop.x * scaleX,
+    crop.y * scaleY,
+    crop.width * scaleX,
+    crop.height * scaleY,
+    0,
+    0,
+    crop.width,
+    crop.height
+  )
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        throw new Error('Canvas is empty')
+      }
+      const reader = new FileReader()
+      reader.readAsDataURL(blob)
+      reader.onloadend = () => {
+        resolve(reader.result as string)
+      }
+    }, 'image/jpeg')
+  })
+}
+
+export default function AddEntry() {
+  const router = useRouter()
   const [imageData, setImageData] = useState<string | null>(null)
+  const [croppedImageData, setCroppedImageData] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<string | null>(null)
   const [lplate, setLplate] = useState<string>('')
   const [entryType, setEntryType] = useState<string>('entry')
   const [facingMode, setFacingMode] = useState<string>('environment')
+  const [isCropping, setIsCropping] = useState(false)
+  const [crop, setCrop] = useState<Crop>({
+    unit: '%',
+    width: 90,
+    height: 50,
+    x: 5,
+    y: 25
+  })
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
     if (error || uploadStatus) {
@@ -54,7 +106,6 @@ export default function CameraCapture() {
       return { success: false, message: 'An error occurred during image upload. Please try again.' };
     }
   }
-
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } })
@@ -74,6 +125,7 @@ export default function CameraCapture() {
         context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height)
         const imageDataUrl = canvasRef.current.toDataURL('image/jpeg')
         setImageData(imageDataUrl)
+        setCroppedImageData(null)
         stopCamera()
       }
     }
@@ -87,12 +139,29 @@ export default function CameraCapture() {
     }
   }
 
+  const startCropping = () => {
+    setIsCropping(true)
+  }
+
+  const completeCrop = async () => {
+    if (imgRef.current && crop.width && crop.height) {
+      try {
+        const croppedImg = await getCroppedImg(imgRef.current, crop as PixelCrop)
+        setCroppedImageData(croppedImg)
+        setIsCropping(false)
+      } catch (err) {
+        setError('Failed to crop image')
+      }
+    }
+  }
+
   const handleUpload = async () => {
-    if (imageData) {
+    const imageToUpload = croppedImageData || imageData
+    if (imageToUpload) {
       setUploading(true)
       setUploadStatus(null)
       try {
-        const response = await fetch(imageData)
+        const response = await fetch(imageToUpload)
         const blob = await response.blob()
         const formData = new FormData()
         formData.append('image', blob, 'capture.jpg')
@@ -122,6 +191,9 @@ export default function CameraCapture() {
       if (response.ok) {
         setUploadStatus('License plate submitted successfully!');
         setLplate('');
+        setImageData(null);
+        setCroppedImageData(null);
+        startCamera();
       } else {
         setError('Failed to submit license plate.')
       }
@@ -141,6 +213,7 @@ export default function CameraCapture() {
 
   return (
     <div className="min-h-screen p-4 bg-gray-100">
+      <Button className="mt-2" onClick={()=>router.push('/admin/dashboard')}>Return to Dashboard</Button>
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Camera Capture Card */}
@@ -149,19 +222,40 @@ export default function CameraCapture() {
               <CardTitle>Camera Capture</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {!imageData && (
+              {!imageData && !croppedImageData && (
                 <div className="aspect-video bg-gray-200 relative overflow-hidden rounded-lg">
                   <video ref={videoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
                 </div>
               )}
-              {imageData && (
+              {imageData && !croppedImageData && (
                 <div className="aspect-video bg-gray-200 relative overflow-hidden rounded-lg">
-                  <img src={imageData} alt="Captured" className="absolute inset-0 w-full h-full object-cover" />
+                  {isCropping ? (
+                    <ReactCrop
+                      crop={crop}
+                      onChange={(c) => setCrop(c)}
+                      aspect={undefined}
+                    >
+                      <img
+                        ref={imgRef}
+                        src={imageData}
+                        alt="To crop"
+                        className="w-full h-full object-contain"
+                      />
+                    </ReactCrop>
+                  ) : (
+                    <img src={imageData} alt="Captured" className="w-full h-full object-contain" />
+                  )}
+                </div>
+              )}
+              {croppedImageData && (
+                <div className="aspect-video bg-gray-200 relative overflow-hidden rounded-lg">
+                  <img src={croppedImageData} alt="Cropped" className="w-full h-full object-contain" />
                 </div>
               )}
               <canvas ref={canvasRef} style={{ display: 'none' }} width={640} height={480} />
+              
               <div className="flex justify-between gap-4">
-                {!imageData ? (
+                {!imageData && !croppedImageData ? (
                   <>
                     <Button onClick={startCamera} className="flex-1">
                       <CameraIcon className="mr-2 h-4 w-4" />
@@ -170,20 +264,38 @@ export default function CameraCapture() {
                     <Button onClick={captureImage} className="flex-1">Capture</Button>
                   </>
                 ) : (
-                  <>
-                    <Button onClick={() => { setImageData(null); startCamera(); }} className="flex-1">Retake</Button>
-                    <Button onClick={handleUpload} disabled={uploading} className="flex-1">
-                      <UploadIcon className="mr-2 h-4 w-4" />
-                      {uploading ? 'Uploading...' : 'Upload'}
+                  <div className="flex flex-wrap gap-2 w-full">
+                    <Button onClick={() => { 
+                      setImageData(null); 
+                      setCroppedImageData(null);
+                      setIsCropping(false);
+                      startCamera(); 
+                    }} className="flex-1">
+                      Retake
                     </Button>
-                  </>
+                    
+                    {imageData && !croppedImageData && !isCropping && (
+                      <Button onClick={startCropping} className="flex-1">
+                        <CropIcon className="mr-2 h-4 w-4" />
+                        Crop
+                      </Button>
+                    )}
+                    
+                    {isCropping && (
+                      <Button onClick={completeCrop} className="flex-1">
+                        <Check className="mr-2 h-4 w-4" />
+                        Complete Crop
+                      </Button>
+                    )}
+                    
+                    {(imageData || croppedImageData) && !isCropping && (
+                      <Button onClick={handleUpload} disabled={uploading} className="flex-1">
+                        <UploadIcon className="mr-2 h-4 w-4" />
+                        {uploading ? 'Uploading...' : 'Upload'}
+                      </Button>
+                    )}
+                  </div>
                 )}
-              </div>
-              <div className="flex justify-between gap-4 mt-4">
-                <Button onClick={toggleCamera} className="flex-1">
-                  <RefreshCwIcon className="mr-2 h-4 w-4" />
-                  Switch Camera
-                </Button>
               </div>
             </CardContent>
           </Card>
