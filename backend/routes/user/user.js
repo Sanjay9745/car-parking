@@ -2,6 +2,7 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../../models/User'); // Adjust the path as necessary
+const Vehicle = require('../../models/Vehicle');
 
 const saltRounds = 10;
 const jwtSecret = process.env.JWT_SECRET; // Replace with your actual secret
@@ -125,28 +126,6 @@ exports.paymentPending = async (req, res) => {
         });
         res.json(pendingVehicles);
     } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-}
-
-exports.pay = async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id);
-        if (user == null) {
-            return res.status(404).json({ message: 'Cannot find user' });
-        }
-        let vehicles = user.vehicles;
-        vehicles.forEach(vehicle => {
-            vehicle.logs.forEach(log => {
-                if (!log.paid){
-                    log.paid = true;
-                }
-            });
-        });
-        const updatedUser = await user.save();
-        res.json(updatedUser);
-    }
-    catch (err) {
         res.status(500).json({ message: err.message });
     }
 }

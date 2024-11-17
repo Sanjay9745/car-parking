@@ -1,4 +1,5 @@
 const ParkingSlot = require("../../models/ParkingSlot");
+const Vehicle = require("../../models/Vehicle");
 
 exports.addParkingSlot = async (req, res) => {
     const { slotNumber, slotType } = req.body;
@@ -104,3 +105,40 @@ exports.deleteParkingSlotById = async (req, res) => {
 };
 
 
+exports.changeStatus = async (req, res) => {
+    try {
+        const parkingSlot = await ParkingSlot.findById(req.params.id);
+        if (!parkingSlot) {
+            return res.status(404).json({ message: 'Cannot find parking slot' });
+        }
+
+        if (parkingSlot.isOccupied) {
+            const vehicle = await Vehicle.findById(parkingSlot.vehicle);
+            if (vehicle) {
+                vehicle.logs.push({
+                    entry: vehicle.entry,
+                    exit: new Date(), // Assuming exit time is now
+                    paid: vehicle.paid,
+                    cost: vehicle.cost
+                });
+                vehicle.slotId = null;
+                vehicle.park = 0;
+                vehicle.entry = null;
+                vehicle.exit = null;
+                vehicle.paid = false;
+                vehicle.cost = 0;
+                await vehicle.save();
+            }
+        }
+
+        parkingSlot.isOccupied = !parkingSlot.isOccupied;
+        if (!parkingSlot.isOccupied) {
+            parkingSlot.vehicle = null; // Clear the vehicle reference if the slot is now free
+        }
+        await parkingSlot.save();
+
+        res.json({ message: 'Parking slot status changed' });
+    } catch (err) {
+        res.status(400).json({ message: err.message });
+    }
+};

@@ -13,14 +13,13 @@ const vehicleSchema = new mongoose.Schema({
         type: String
     },
     year: {
-        type: Number,
-        required: true
+        type: Number
     },
     color: {
         type: String
     },
     park: {
-        type: Number,// 0 - Not In Parking,5- Parking,10 - Parked
+        type: Number,// 0 - Not In Parking,5- Parking,10 - Parked, 15 - Exit
         default: 0
     },
     entry: {
@@ -29,10 +28,14 @@ const vehicleSchema = new mongoose.Schema({
     exit: {
         type: Date
     },
-    logs:{
-        type: Array,
-        default: []
-    }
+    paid: {
+        type: Boolean,
+        default: false
+    },
+    cost: {
+        type: Number
+    },
+    logs:[]
 });
 
 

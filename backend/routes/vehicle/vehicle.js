@@ -7,6 +7,11 @@ const moment = require('moment');
 exports.getAllVehicles = async (req, res) => {
     try {
         const vehicles = await Vehicle.find();
+        const parkingSlots = await ParkingSlot.find();
+        vehicles.forEach(vehicle => {
+            let slot = parkingSlots.find(slot => slot.vehicle == vehicle._id);
+            vehicle.slot = slot || null;
+        });
         res.json(vehicles);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -77,20 +82,20 @@ exports.createVehicle = async (req, res) => {
 exports.updateVehicleById = async (req, res) => {
     try {
         const vehicle = await Vehicle.findById(req.params.id);
-        if (vehicle == null) {
+        if (!vehicle) {
             return res.status(404).json({ message: 'Cannot find vehicle' });
         }
+
         let lplate = req.body.lplate;
-        if (lplate) {
+        if (lplate && lplate !== vehicle.lplate) {
             lplate = enhanceLPlate(lplate);
             const vehicleExists = await Vehicle.findOne({ lplate: lplate });
-            if (vehicleExists && vehicleExists._id != vehicle._id) {
-                return res.status(400).json({ message: 'Vehicle already exists' });
+            if (vehicleExists && vehicleExists._id.toString() !== vehicle._id.toString()) {
+                return res.status(400).json({ message: 'Vehicle with this license plate already exists' });
             }
+            vehicle.lplate = lplate;
         }
-        if (req.body.lplate != null) {
-            vehicle.lplate = req.body.lplate;
-        }
+
         if (req.body.make != null) {
             vehicle.make = req.body.make;
         }
@@ -103,6 +108,21 @@ exports.updateVehicleById = async (req, res) => {
         if (req.body.color != null) {
             vehicle.color = req.body.color;
         }
+        if (req.body.park != null) {
+            vehicle.park = req.body.park;
+        }
+        if (req.body.entry != null) {
+            vehicle.entry = req.body.entry;
+        }
+        if (req.body.exit != null) {
+            vehicle.exit = req.body.exit;
+        }
+        if (req.body.paid != null) {
+            vehicle.paid = req.body.paid;
+        }
+        if (req.body.cost != null) {
+            vehicle.cost = req.body.cost;
+        }
 
         const updatedVehicle = await vehicle.save();
         res.json(updatedVehicle);
@@ -110,7 +130,6 @@ exports.updateVehicleById = async (req, res) => {
         res.status(400).json({ message: err.message });
     }
 };
-
 // DELETE a vehicle by ID
 exports.deleteVehicleById = async (req, res) => {
     try {
@@ -141,6 +160,42 @@ exports.getVehicleByUserId = async (req, res) => {
     }
 };
 
+exports.updateUserVehicle = async (req, res) => {
+    try {
+        let userId = req.user.id;
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        if (!user.vehicles.includes(req.params.id)) {
+            return res.status(404).json({ message: `Vehicle not found in user's list` });
+        }
+        
+        const vehicle = await Vehicle.findById(req.params.id);
+        if (!vehicle) {
+            return res.status(404).json({ message: 'Vehicle not found' });
+        }
+
+        if (req.body.make != null) {
+            vehicle.make = req.body.make;
+        }
+        if (req.body.model != null) {
+            vehicle.model = req.body.model;
+        }
+        if (req.body.year != null) {
+            vehicle.year = req.body.year;
+        }
+        if (req.body.color != null) {
+            vehicle.color = req.body.color;
+        }
+
+        const updatedVehicle = await vehicle.save();
+        res.json(updatedVehicle);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};
+
 exports.addVehicleToUser = async (req, res) => {
     try {
         let userId = req.user.id;
@@ -152,8 +207,7 @@ exports.addVehicleToUser = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Get the license plate from the request params or body
-        const lplate = req.params.lplate || req.body.lplate;
+        let lplate = req.params.lplate || req.body.lplate;
         if (!lplate) {
             return res.status(400).json({ message: 'License Plate is required' });
         }
@@ -297,6 +351,9 @@ exports.addEntry = async (req, res) => {
         lplate = enhanceLPlate(lplate);
         let vehicle = await Vehicle.findOne({ lplate: lplate });
         if (!vehicle) {
+            vehicle = new Vehicle({
+                lplate: lplate
+            });
         }
         if (vehicle.park === 0) {
             vehicle.park = 5;
@@ -322,23 +379,16 @@ exports.addExit = async (req, res) => {
         if (vehicle.park === 0) {
             return res.status(400).json({ message: 'Vehicle is already out' });
         }
-        vehicle.park = 0;
         vehicle.exit = moment().toISOString();
         let entry = moment(vehicle.entry);
         let exit = moment(vehicle.exit);
         let duration = moment.duration(exit.diff(entry));
         let hours = duration.asHours();
         let cost = hours * 2;
-        let logs = {
-            entry: vehicle.entry,
-            exit: vehicle.exit,
-            duration: hours,
-            cost: cost,
-            paid: false
-        }
-        vehicle.logs.push(logs);
-        vehicle.entry = null;
-        vehicle.exit = null;
+        console.log(cost);
+        vehicle.cost = Number(cost);
+        vehicle.paid = false;
+        vehicle.park = 15;
         let parkingSlot = await ParkingSlot.findOne({ vehicle: vehicle._id });
         if (parkingSlot) {
             parkingSlot.vehicle = null;
@@ -347,6 +397,32 @@ exports.addExit = async (req, res) => {
         }
         await vehicle.save();
         res.json(vehicle);
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+}
+exports.payForParking = async (req, res) => {
+    try {
+        let vehicleId = req.params.id;
+        if (!vehicleId) {
+            return res.status(400).json({ message: 'Vehicle ID is required' });
+        }
+        let vehicle = await Vehicle.findById(vehicleId);
+        if (vehicle == null) {
+            return res.status(404).json({ message: 'Cannot find vehicle' });
+        }
+        if (vehicle.park != 15) {
+            return res.status(400).json({ message: 'Vehicle is not exited' });
+        }
+        vehicle.logs.push({entry:vehicle.entry,exit:vehicle.exit,cost:vehicle.cost,paid:true});
+        vehicle.paid = true;
+        vehicle.entry = null;
+        vehicle.exit = null;
+        vehicle.cost = 0;
+        vehicle.park = 0;
+        const updatedVehicle = await vehicle.save();
+        res.json(updatedVehicle);
     }
     catch (err) {
         res.status(500).json({ message: err.message });
