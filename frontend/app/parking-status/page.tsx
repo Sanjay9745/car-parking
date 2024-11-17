@@ -58,7 +58,7 @@ function ParkingStatus() {
           return;
         }
         let slot = response.data.slot;
-        let entry = new Date(vehicle.entry);
+        let entry = moment(vehicle.entry);
         setEntryTime(entry);
         setVehicle(vehicle);
         setSlot(slot);
@@ -74,15 +74,14 @@ function ParkingStatus() {
     setParkingAmount(Math.ceil(durationInHours * HOURLY_RATE))
     setProgress(Math.min((durationInHours / 24) * 100, 100)) // Assuming max parking duration is 24 hours
   }, [currentTime, entryTime])
-
-  const formatDuration = (start: Date, end: Date) => {
-    const durationInSeconds = Math.floor((end.getTime() - start.getTime()) / 1000)
-    const hours = Math.floor(durationInSeconds / 3600)
-    const minutes = Math.floor((durationInSeconds % 3600) / 60)
-    const seconds = durationInSeconds % 60
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-  }
-
+  const formatDuration = (start: any, end: any) => {
+      const startMoment = moment(start);
+      const endMoment = moment(end);
+      const durationInMinutes = Math.floor(moment.duration(endMoment.diff(startMoment)).asMinutes());
+      const hours = Math.floor(durationInMinutes / 60);
+      const minutes = durationInMinutes % 60;
+      return `${hours}h ${minutes}m`;
+   }
   return (
     <div className="container mx-auto p-4 max-w-md">
       <Card className="w-full">
