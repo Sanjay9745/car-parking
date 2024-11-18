@@ -26,6 +26,9 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/vehicles', require('./routes/vehicle'));
 app.use('/api/parkingSlots', require('./routes/parkingSlot'));
 
+app.get('/',(req,res)=>{
+    res.send("Welcome to API")
+});
 
 
 app.listen(port, () => {
